@@ -3,6 +3,7 @@ import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import * as z from 'zod';
+import { jwtDecode } from 'jwt-decode';  // Changed to named import
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -19,9 +20,15 @@ export default function LoginScreen({ navigation }) {
       loginSchema.parse({ email, password });
       const res = await axios.post('http://192.168.0.114:3000/auth/login', { email, password });
       await SecureStore.setItemAsync('jwtToken', res.data.token);
-      navigation.navigate('Home');
+      const decoded = jwtDecode(res.data.token);  // Uses named export
+      if (decoded.role === 'admin') {
+        navigation.navigate('AdminDashboard');
+      } else {
+        navigation.navigate('Home');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      console.error('Login error:', err);  // For debugger
+      setError(err.response?.data?.error || err.message || 'Login failed - check credentials or network');
     }
   };
 
