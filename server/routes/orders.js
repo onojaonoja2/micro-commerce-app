@@ -8,7 +8,10 @@ const router = express.Router();
 router.post('/', authenticate, (req, res) => {
   const transaction = db.transaction(() => {
     try {
-      const cartId = `user_${req.user.id}`; // Require login for orders
+      // Look up the numeric cart id associated with this authenticated user
+      const cartRow = db.prepare('SELECT id FROM carts WHERE user_id = ?').get(req.user.id);
+      if (!cartRow) throw new Error('Cart empty');
+      const cartId = cartRow.id;
       const cartItemsStmt = db.prepare(`
         SELECT ci.product_id, ci.quantity, p.price, p.stock
         FROM cart_items ci JOIN products p ON ci.product_id = p.id

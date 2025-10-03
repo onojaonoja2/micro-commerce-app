@@ -1,6 +1,8 @@
 const express = require('express');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
 
 const router = express.Router();
 
@@ -9,6 +11,20 @@ const getCartId = (req) => {
   let cartStmt;
   // Allow mobile clients to provide a guest cart identifier header so they can persist carts without cookies
   const guestHeader = req.headers['x-guest-cart-id'];
+
+  // If the route didn't use authenticate middleware, try to extract and verify a Bearer token
+  // so we can associate cart actions with the authenticated user's cart.
+  if (!req.user && req.headers?.authorization) {
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      if (token) {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded && decoded.id) req.user = decoded;
+      }
+    } catch (e) {
+      // invalid token -> ignore and continue as guest (do not throw)
+    }
+  }
 
   if (req.user) {
     cartStmt = db.prepare('SELECT id FROM carts WHERE user_id = ?');
