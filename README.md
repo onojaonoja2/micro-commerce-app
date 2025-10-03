@@ -38,11 +38,6 @@ Testing
   - `npm test`
 - Tests are isolated (create/cleanup rows). If a test fails with FK errors, check DB state and re-run migrations + seed.
 
-Further improvements (suggested)
-- Move secrets to a secure store for production.
-- Add CI (GitHub Actions) to run tests and migrations.
-- Add more comprehensive end-to-end tests for client flows.
-
 Contact
 - For local help, ensure your device and server are on the same LAN if using Expo Go (set API_BASE to machine IP).
 
