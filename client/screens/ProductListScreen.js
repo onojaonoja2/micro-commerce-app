@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../utils/api';
 // Robust jwtDecode wrapper to support different bundler module shapes
@@ -17,18 +17,12 @@ const jwtDecode = (token) => {
     const decoded = (typeof global.atob === 'function')
       ? global.atob(payload)
       : Buffer.from(payload, 'base64').toString('binary');
-    try {
-      return JSON.parse(decodeURIComponent(escape(decoded)));
-    } catch (_) {
-      return JSON.parse(decoded);
-    }
-  } catch (e) {
-    return null;
-  }
+    try { return JSON.parse(decodeURIComponent(escape(decoded))); } catch (_) { return JSON.parse(decoded); }
+  } catch (e) { return null; }
 };
 import * as SecureStore from 'expo-secure-store';
 
-export default function ProductListScreen({ navigation }) {
+export default function ProductListScreen({ navigation, showAdmin = true }) {
   const [products, setProducts] = useState([]);
   const [page, setPage] = useState(1);
   const [nameFilter, setNameFilter] = useState('');
@@ -38,14 +32,15 @@ export default function ProductListScreen({ navigation }) {
     const getRole = async () => {
       const token = await SecureStore.getItemAsync('jwtToken');
       if (token) {
-        // Use a safe version of jwtDecode or ensure it's imported correctly
         try {
           const decoded = jwtDecode(token);
-          setRole(decoded.role);
+          setRole(decoded?.role ?? null);
         } catch (e) {
           console.error("Error decoding JWT:", e);
-          setRole(null); // Clear role on error
+          setRole(null);
         }
+      } else {
+        setRole(null);
       }
     };
     getRole();
@@ -54,7 +49,6 @@ export default function ProductListScreen({ navigation }) {
 
   const fetchProducts = async () => {
     try {
-      // Use Alert to be consistent with the other instruction's use of alert()
       const res = await api.get('/products', { params: { page, limit: 10, name: nameFilter } });
       setProducts(res.data.products);
     } catch (err) {
@@ -63,75 +57,45 @@ export default function ProductListScreen({ navigation }) {
     }
   };
 
-  // Function to handle adding a product to the cart
- const handleAddToCart = async (productId) => {
-  try {
-    const res = await api.post('/cart/add', { productId, quantity: 1 });
-    // Persist the server-provided guest cart id so mobile clients can continue the session
-    if (res.data?.sessionId) {
-      await SecureStore.setItemAsync('guestCartId', res.data.sessionId);
-    }
-    alert('Added to cart');
-  } catch (err) {
-    console.error(err);
-    alert(err.response?.data?.error || 'Error adding to cart - check backend logs');
-  }
-};
-
   return (
     <SafeAreaView style={styles.safeContainer}>
       <View style={styles.container}>
         <Text style={styles.header}>Products</Text>
-        
-        {/* View Cart Button */}
-        <Button 
-          title="View Cart" 
-          onPress={() => navigation.navigate('Cart')} 
+
+        <TextInput
+          style={styles.input}
+          placeholder="Filter by name"
+          value={nameFilter}
+          onChangeText={setNameFilter}
         />
-        
-        <TextInput 
-          style={styles.input} 
-          placeholder="Filter by name" 
-          value={nameFilter} 
-          onChangeText={setNameFilter} 
-        />
-        
+
         <FlatList
           data={products}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View style={styles.item}>
-              <Text style={styles.itemText}>{`${item.name} - $${item.price} (Stock: ${item.stock})`}</Text>
-              
-              {/* Add to Cart Button */}
-              <Button 
-                title="Add to Cart" 
-                onPress={() => handleAddToCart(item.id)} 
-                disabled={item.stock === 0} // Optional: Disable if stock is 0
-              />
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => navigation.navigate('ProductDetails', { product: item })}>
+                <Text style={styles.itemText}>{`${item.name} - $${item.price} (Stock: ${item.stock})`}</Text>
+              </TouchableOpacity>
             </View>
           )}
         />
-        
+
         <View style={styles.pagination}>
-          <Button 
-            title="Previous" 
-            onPress={() => setPage(Math.max(1, page - 1))} 
-            disabled={page === 1} 
-          />
+          <TouchableOpacity onPress={() => setPage(Math.max(1, page - 1))} style={styles.pageBtn}>
+            <Text style={styles.pageBtnText}>Previous</Text>
+          </TouchableOpacity>
           <Text style={styles.pageIndicator}>Page {page}</Text>
-          <Button 
-            title="Next" 
-            onPress={() => setPage(page + 1)} 
-          />
+          <TouchableOpacity onPress={() => setPage(page + 1)} style={styles.pageBtn}>
+            <Text style={styles.pageBtnText}>Next</Text>
+          </TouchableOpacity>
         </View>
-        
-        {role === 'admin' && (
+
+        {showAdmin && role === 'admin' && (
           <View style={styles.adminButtonContainer}>
-            <Button 
-              title="Admin Dashboard" 
-              onPress={() => navigation.navigate('AdminDashboard')} 
-            />
+            <TouchableOpacity onPress={() => navigation.navigate('AdminDashboard')} style={[styles.smallBtn, { backgroundColor: '#6c757d' }]}>
+              <Text style={styles.smallBtnText}>Admin</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -173,9 +137,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     marginRight: 10,
   },
-  pagination: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-around', 
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
     paddingVertical: 10,
     borderTopWidth: 1,
@@ -185,8 +149,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  pageBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#007AFF',
+    borderRadius: 6
+  },
+  pageBtnText: { color: '#fff', fontWeight: '600' },
   adminButtonContainer: {
     marginTop: 10,
-    marginBottom: 10, // Added to provide space at the bottom
-  }
+    marginBottom: 10,
+  },
+  // minimal smallBtn used only for the admin quick link here
+  smallBtn: {
+    height: 34,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  smallBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 });

@@ -52,4 +52,9 @@ db.exec(`
   );
 `);
 
+// Add unique index to prevent duplicate cart items for the same cart/product
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_cart_product ON cart_items(cart_id, product_id);
+`);
+
 module.exports = db;

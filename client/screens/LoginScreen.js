@@ -66,8 +66,12 @@ export default function LoginScreen({ navigation }) {
       <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} />
       <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
       {error && <Text style={styles.error}>{error}</Text>}
-      <Button title="Login" onPress={handleLogin} />
-      <Button title="Go to Signup" onPress={() => navigation.navigate('Signup')} />
+      <View style={styles.buttonWrap}>
+        <Button title="Login" onPress={handleLogin} />
+      </View>
+      <View style={styles.buttonWrap}>
+        <Button title="Go to Signup" onPress={() => navigation.navigate('Signup')} />
+      </View>
     </View>
   );
 }
@@ -76,4 +80,5 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', padding: 20 },
   input: { borderWidth: 1, marginBottom: 10, padding: 10 },
   error: { color: 'red' },
+  buttonWrap: { marginTop: 10 } // spacing between buttons
 });

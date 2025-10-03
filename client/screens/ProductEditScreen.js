@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
+import { View, TextInput, Button, Text, StyleSheet, Alert } from 'react-native';
 import api from '../utils/api';
 
 export default function ProductEditScreen({ route, navigation }) {
@@ -23,12 +23,15 @@ export default function ProductEditScreen({ route, navigation }) {
       const data = { name, description, price: parseFloat(price), stock: parseInt(stock) };
       if (product) {
         await api.put(`/products/${product.id}`, data);
+        Alert.alert('Success', 'Product updated');
       } else {
         await api.post('/products', data);
+        Alert.alert('Success', 'Product created');
       }
       navigation.goBack();
     } catch (err) {
       console.error(err);
+      Alert.alert('Error', err.response?.data?.error || 'Failed to save product');
     }
   };
 

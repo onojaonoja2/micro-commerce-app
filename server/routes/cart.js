@@ -1,10 +1,9 @@
 const express = require('express');
 const db = require('../db');
 const { authenticate } = require('../middleware/auth');
+const router = express.Router();
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
-
-const router = express.Router();
 
 // Helper to get/create cart ID (user or session)
 const getCartId = (req) => {
@@ -74,22 +73,72 @@ router.get('/', (req, res) => {
   }
 });
 
-// POST /cart/add - Add item
+// POST /cart/add - Add item (upsert: update quantity if item exists)
 router.post('/add', (req, res) => {
   try {
     const productId = parseInt(req.body.productId);
-    const quantity = parseInt(req.body.quantity || 1);
+    const quantity = Math.max(1, parseInt(req.body.quantity || 1));
     if (isNaN(productId) || isNaN(quantity)) return res.status(400).json({ error: 'Invalid input' });
     const cartId = getCartId(req);
+
     const productStmt = db.prepare('SELECT stock, price FROM products WHERE id = ?');
     const product = productStmt.get(productId);
-    if (!product || product.stock < quantity) return res.status(400).json({ error: 'Out of stock' });
+    if (!product) return res.status(400).json({ error: 'Product not found' });
 
-    const cartStmt = db.prepare('INSERT OR REPLACE INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)');
-    cartStmt.run(cartId, productId, quantity);
+    // Check existing quantity in cart and ensure we don't exceed stock
+    const existingStmt = db.prepare('SELECT id, quantity FROM cart_items WHERE cart_id = ? AND product_id = ?');
+    const existing = existingStmt.get(cartId, productId);
+    const existingQty = existing ? existing.quantity : 0;
+    if (existingQty + quantity > product.stock) {
+      return res.status(400).json({ error: 'Out of stock' });
+    }
+
+    if (existing) {
+      const newQty = existingQty + quantity;
+      db.prepare('UPDATE cart_items SET quantity = ? WHERE id = ?').run(newQty, existing.id);
+    } else {
+      db.prepare('INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)').run(cartId, productId, quantity);
+    }
+
     res.json({ message: 'Added to cart', sessionId: req.session.cartSessionId });
   } catch (error) {
     console.error('Cart error:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// NEW: POST /cart/update - set item quantity (delete if 0), enforce stock limits
+router.post('/update', (req, res) => {
+  try {
+    const productId = parseInt(req.body.productId);
+    let quantity = parseInt(req.body.quantity);
+    if (isNaN(productId) || isNaN(quantity)) return res.status(400).json({ error: 'Invalid input' });
+    if (quantity < 0) quantity = 0;
+
+    const cartId = getCartId(req);
+
+    const productStmt = db.prepare('SELECT stock FROM products WHERE id = ?');
+    const product = productStmt.get(productId);
+    if (!product) return res.status(400).json({ error: 'Product not found' });
+
+    if (quantity > product.stock) return res.status(400).json({ error: 'Out of stock' });
+
+    const existingStmt = db.prepare('SELECT id FROM cart_items WHERE cart_id = ? AND product_id = ?');
+    const existing = existingStmt.get(cartId, productId);
+
+    if (quantity === 0) {
+      if (existing) db.prepare('DELETE FROM cart_items WHERE id = ?').run(existing.id);
+    } else {
+      if (existing) {
+        db.prepare('UPDATE cart_items SET quantity = ? WHERE id = ?').run(quantity, existing.id);
+      } else {
+        db.prepare('INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)').run(cartId, productId, quantity);
+      }
+    }
+
+    res.json({ message: 'Cart updated', sessionId: req.session.cartSessionId });
+  } catch (error) {
+    console.error('Cart update error:', error.message);
     res.status(400).json({ error: error.message });
   }
 });

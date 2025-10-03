@@ -4,6 +4,50 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+// GET /orders - list orders for authenticated user (paginated, with item counts)
+router.get('/', authenticate, (req, res) => {
+  try {
+    const page = Number.parseInt(req.query.page) || 1;
+    const limit = Number.parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const totalRow = db.prepare('SELECT COUNT(*) as total FROM orders WHERE user_id = ?').get(req.user.id);
+    const total = totalRow?.total || 0;
+
+    const orders = db.prepare(`
+      SELECT o.id, o.total, o.created_at,
+        (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count
+      FROM orders o
+      WHERE o.user_id = ?
+      ORDER BY o.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(req.user.id, limit, offset);
+
+    res.json({ orders, total, page, limit });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /orders/:id - order details (items) for authenticated user
+router.get('/:id', authenticate, (req, res) => {
+  try {
+    const order = db.prepare('SELECT id, total, created_at FROM orders WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const items = db.prepare(`
+      SELECT oi.product_id, p.name, oi.quantity, oi.price, (oi.quantity * oi.price) as subtotal
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = ?
+    `).all(order.id);
+
+    res.json({ order, items });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /orders - Create order from cart
 router.post('/', authenticate, (req, res) => {
   const transaction = db.transaction(() => {
