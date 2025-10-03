@@ -188,6 +188,4 @@ Postman tips
 - Save the `sessionId` value returned by /cart (store in environment variable "guestCartId") and send it as header `x-guest-cart-id` for guest flows.
 - When testing admin endpoints, create an admin user via seed or change role in DB, then login to obtain a token.
 
-If you want, I can:
-- Add example Postman collection JSON for import.
-- Expand examples to include curl commands for quick CLI testing.
+
