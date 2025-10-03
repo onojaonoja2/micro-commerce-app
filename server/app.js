@@ -11,13 +11,21 @@ const orderRoutes = require('./routes/orders');
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: true })); // Allows frontend access; flexible for dev
+// Allow credentials so mobile/web clients can receive/set session cookies
+app.set('trust proxy', 1); // if behind a proxy (heroku/nginx) - safe for dev
+app.use(cors({ origin: true, credentials: true })); // Allows frontend access and credentials
 app.use(cookieParser());
 app.use(session({
-  secret: process.env.JWT_SECRET, // Reuse for simplicity
+  // Use a dedicated session secret if available, fallback to JWT_SECRET
+  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET,
   resave: false,
-  saveUninitialized: true,
-  cookie: { maxAge: 60 * 60 * 1000 } // 1 hour
+  saveUninitialized: true, // keep so guest sessions can be created
+  cookie: {
+    maxAge: 60 * 60 * 1000, // 1 hour
+    httpOnly: true,
+    sameSite: 'lax', // reasonable default for session cookies
+    secure: process.env.NODE_ENV === 'production' // require HTTPS in prod
+  }
 }));
 
 

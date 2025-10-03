@@ -7,6 +7,9 @@ const router = express.Router();
 // Helper to get/create cart ID (user or session)
 const getCartId = (req) => {
   let cartStmt;
+  // Allow mobile clients to provide a guest cart identifier header so they can persist carts without cookies
+  const guestHeader = req.headers['x-guest-cart-id'];
+
   if (req.user) {
     cartStmt = db.prepare('SELECT id FROM carts WHERE user_id = ?');
     let cart = cartStmt.get(req.user.id);
@@ -17,6 +20,13 @@ const getCartId = (req) => {
     }
     return cart.id;
   } else {
+    // If client sent a guest header, prefer that session_id (persisted on client)
+    if (guestHeader) {
+      // ensure server-side session knows this value too (optional)
+      if (!req.session) req.session = {}; // defensive
+      req.session.cartSessionId = guestHeader;
+    }
+
     if (!req.session.cartSessionId) req.session.cartSessionId = `session_${Date.now()}`;
     cartStmt = db.prepare('SELECT id FROM carts WHERE session_id = ?');
     let cart = cartStmt.get(req.session.cartSessionId);
@@ -40,7 +50,8 @@ router.get('/', (req, res) => {
     `);
     const items = stmt.all(cartId);
     const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-    res.json({ items, total });
+    // Return the generated/used session identifier so mobile clients can persist it
+    res.json({ items, total, sessionId: req.session.cartSessionId });
   } catch (error) {
     console.error('Cart error:', error.message);
     res.status(500).json({ error: error.message });
@@ -60,7 +71,7 @@ router.post('/add', (req, res) => {
 
     const cartStmt = db.prepare('INSERT OR REPLACE INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)');
     cartStmt.run(cartId, productId, quantity);
-    res.json({ message: 'Added to cart' });
+    res.json({ message: 'Added to cart', sessionId: req.session.cartSessionId });
   } catch (error) {
     console.error('Cart error:', error.message);
     res.status(400).json({ error: error.message });
@@ -74,7 +85,7 @@ router.post('/remove', (req, res) => {
     const cartId = getCartId(req);
     const stmt = db.prepare('DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?');
     stmt.run(cartId, productId);
-    res.json({ message: 'Removed from cart' });
+    res.json({ message: 'Removed from cart', sessionId: req.session.cartSessionId });
   } catch (error) {
     console.error('Cart error:', error.message);
     res.status(500).json({ error: error.message });

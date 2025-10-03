@@ -2,7 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TextInput, Button, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import api from '../utils/api';
-import { jwtDecode } from 'jwt-decode';
+// Robust jwtDecode wrapper to support different bundler module shapes
+const _jwtDecodeImpl = require('jwt-decode');
+const jwtDecode = (token) => {
+  try {
+    if (typeof _jwtDecodeImpl === 'function') return _jwtDecodeImpl(token);
+    if (_jwtDecodeImpl && typeof _jwtDecodeImpl.default === 'function') return _jwtDecodeImpl.default(token);
+  } catch (e) {}
+  try {
+    const parts = String(token).split('.');
+    if (parts.length < 2) return null;
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4 !== 0) payload += '=';
+    const decoded = (typeof global.atob === 'function')
+      ? global.atob(payload)
+      : Buffer.from(payload, 'base64').toString('binary');
+    try {
+      return JSON.parse(decodeURIComponent(escape(decoded)));
+    } catch (_) {
+      return JSON.parse(decoded);
+    }
+  } catch (e) {
+    return null;
+  }
+};
 import * as SecureStore from 'expo-secure-store';
 
 export default function ProductListScreen({ navigation }) {
@@ -43,7 +66,11 @@ export default function ProductListScreen({ navigation }) {
   // Function to handle adding a product to the cart
  const handleAddToCart = async (productId) => {
   try {
-    await api.post('/cart/add', { productId, quantity: 1 });
+    const res = await api.post('/cart/add', { productId, quantity: 1 });
+    // Persist the server-provided guest cart id so mobile clients can continue the session
+    if (res.data?.sessionId) {
+      await SecureStore.setItemAsync('guestCartId', res.data.sessionId);
+    }
     alert('Added to cart');
   } catch (err) {
     console.error(err);

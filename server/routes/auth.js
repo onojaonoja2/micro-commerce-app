@@ -97,6 +97,14 @@ router.post('/login', (req, res) => {
     // ------------------------------------------------------------------
     // START: Merge guest cart on login logic
     // ------------------------------------------------------------------
+    // Mobile clients may persist a guest cart id and send it in this header
+    const guestCartHeader = req.headers['x-guest-cart-id'];
+    if (guestCartHeader) {
+      // populate server session pointer so existing merge logic can use it
+      if (!req.session) req.session = {};
+      req.session.cartSessionId = guestCartHeader;
+    }
+
     if (req.session.cartSessionId) {
       // 1. Get the numerical ID of the guest cart (using the existing session ID)
       const tempReqForGuestCart = { session: req.session };

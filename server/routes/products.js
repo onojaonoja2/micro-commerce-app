@@ -12,38 +12,45 @@ const productSchema = z.object({
   stock: z.number().int().nonnegative(),
 });
 
-// GET /products - List with filter/pagination
-router.get('/', authenticate, (req, res) => {
+// GET /products - List with filter/pagination (now public)
+router.get('/', (req, res) => {
   try {
-    const { page = 1, limit = 10, name, minPrice, maxPrice } = req.query;
+    const page = Number.parseInt(req.query.page) || 1;
+    const limit = Number.parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
+    const { name, minPrice, maxPrice } = req.query;
 
-    let query = 'SELECT * FROM products WHERE 1=1';
+    // Build reusable WHERE clause and params for both select and count
+    let where = '1=1';
     const params = [];
 
     if (name) {
-      query += ' AND name LIKE ?';
+      where += ' AND name LIKE ?';
       params.push(`%${name}%`);
     }
-    if (minPrice) {
-      query += ' AND price >= ?';
-      params.push(parseFloat(minPrice));
+    if (minPrice !== undefined) {
+      const mp = parseFloat(minPrice);
+      if (!Number.isNaN(mp)) {
+        where += ' AND price >= ?';
+        params.push(mp);
+      }
     }
-    if (maxPrice) {
-      query += ' AND price <= ?';
-      params.push(parseFloat(maxPrice));
+    if (maxPrice !== undefined) {
+      const xp = parseFloat(maxPrice);
+      if (!Number.isNaN(xp)) {
+        where += ' AND price <= ?';
+        params.push(xp);
+      }
     }
 
-    query += ' LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), offset);
+    const selectQuery = `SELECT * FROM products WHERE ${where} LIMIT ? OFFSET ?`;
+    const selectParams = params.concat([limit, offset]);
+    const products = db.prepare(selectQuery).all(...selectParams);
 
-    const stmt = db.prepare(query);
-    const products = stmt.all(...params);
+    const countQuery = `SELECT COUNT(*) as total FROM products WHERE ${where}`;
+    const { total } = db.prepare(countQuery).get(...params);
 
-    const countStmt = db.prepare('SELECT COUNT(*) as total FROM products');
-    const { total } = countStmt.get();
-
-    res.json({ products, total, page: parseInt(page), limit: parseInt(limit) });
+    res.json({ products, total, page, limit });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

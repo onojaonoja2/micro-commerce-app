@@ -3,7 +3,35 @@ import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import * as z from 'zod';
-import { jwtDecode } from 'jwt-decode';  // Changed to named import
+//import { jwtDecode } from 'jwt-decode';
+
+// Robust jwtDecode wrapper: handles function export, { default: fn } and a payload fallback
+const _jwtDecodeImpl = require('jwt-decode');
+const jwtDecode = (token) => {
+  try {
+    if (typeof _jwtDecodeImpl === 'function') return _jwtDecodeImpl(token);
+    if (_jwtDecodeImpl && typeof _jwtDecodeImpl.default === 'function') return _jwtDecodeImpl.default(token);
+  } catch (e) {}
+  // Fallback: decode JWT payload without external lib (assumes base64url)
+  try {
+    const parts = String(token).split('.');
+    if (parts.length < 2) return null;
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    // Add padding if required
+    while (payload.length % 4 !== 0) payload += '=';
+    const decoded = (typeof global.atob === 'function')
+      ? global.atob(payload)
+      : Buffer.from(payload, 'base64').toString('binary'); // Buffer may not exist in RN but kept as fallback
+    // Convert binary string to UTF-8 string
+    try {
+      return JSON.parse(decodeURIComponent(escape(decoded)));
+    } catch (_) {
+      return JSON.parse(decoded);
+    }
+  } catch (e) {
+    return null;
+  }
+};
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -20,14 +48,14 @@ export default function LoginScreen({ navigation }) {
       loginSchema.parse({ email, password });
       const res = await axios.post('http://192.168.0.114:3000/auth/login', { email, password });
       await SecureStore.setItemAsync('jwtToken', res.data.token);
-      const decoded = jwtDecode(res.data.token);  // Uses named export
+      const decoded = jwtDecode(res.data.token);
       if (decoded.role === 'admin') {
         navigation.navigate('AdminDashboard');
       } else {
         navigation.navigate('Home');
       }
     } catch (err) {
-      console.error('Login error:', err);  // For debugger
+      console.error('Login error:', err);
       setError(err.response?.data?.error || err.message || 'Login failed - check credentials or network');
     }
   };
