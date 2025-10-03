@@ -1,7 +1,9 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-const API_BASE = 'http://192.168.0.114:3000'; // Your laptop IP
+// Prefer runtime config (app.json -> extra). Fallback to hardcoded dev IP.
+const API_BASE = Constants?.manifest?.extra?.API_BASE || 'http://192.168.0.114:3000';
 
 // Ensure axios will send/receive cookies (for session support)
 const api = axios.create({ baseURL: API_BASE, withCredentials: true });
