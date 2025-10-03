@@ -55,7 +55,8 @@ export default function CartScreen({ navigation, route }) {
       }
       fetchCart();
     } catch (err) {
-      Alert.alert('Error', err.response?.data?.error || 'Failed to update cart');
+      const msg = err.response?.data?.error || 'Failed to update cart';
+      Alert.alert('', msg);
     }
   };
 
@@ -77,10 +78,11 @@ export default function CartScreen({ navigation, route }) {
       }
       setAutoTriggered(true);
       await api.post('/orders');
-      alert('Order placed!');
+      Alert.alert('', 'Order placed!');
       navigation.navigate('Home');
     } catch (err) {
-      alert(err.response?.data?.error || 'Checkout failed');
+      const msg = err.response?.data?.error || 'Checkout failed';
+      Alert.alert('', msg);
     }
   };
 

@@ -66,7 +66,7 @@ router.post('/', authenticate, (req, res) => {
 
       // Check stock
       items.forEach(item => {
-        if (item.stock < item.quantity) throw new Error(`Out of stock for product ${item.product_id}`);
+        if (item.stock < item.quantity) throw new Error('Product out of stock');
       });
 
       // Create order

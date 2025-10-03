@@ -20,10 +20,11 @@ export default function ProductDetailsScreen({ route, navigation }) {
       if (res.data?.sessionId) {
         await SecureStore.setItemAsync('guestCartId', res.data.sessionId);
       }
-      Alert.alert('Success', 'Added to cart');
+      Alert.alert('', 'Added to cart');
     } catch (err) {
       console.error('Add to cart error', err);
-      Alert.alert('Error', err.response?.data?.error || 'Failed to add to cart');
+      const msg = err.response?.data?.error || 'Failed to add to cart';
+      Alert.alert('', msg);
     } finally {
       setLoading(false);
     }

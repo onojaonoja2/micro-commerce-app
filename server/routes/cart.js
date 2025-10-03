@@ -90,7 +90,7 @@ router.post('/add', (req, res) => {
     const existing = existingStmt.get(cartId, productId);
     const existingQty = existing ? existing.quantity : 0;
     if (existingQty + quantity > product.stock) {
-      return res.status(400).json({ error: 'Out of stock' });
+      return res.status(400).json({ error: 'Product out of stock' });
     }
 
     if (existing) {
@@ -121,7 +121,7 @@ router.post('/update', (req, res) => {
     const product = productStmt.get(productId);
     if (!product) return res.status(400).json({ error: 'Product not found' });
 
-    if (quantity > product.stock) return res.status(400).json({ error: 'Out of stock' });
+    if (quantity > product.stock) return res.status(400).json({ error: 'Product out of stock' });
 
     const existingStmt = db.prepare('SELECT id FROM cart_items WHERE cart_id = ? AND product_id = ?');
     const existing = existingStmt.get(cartId, productId);

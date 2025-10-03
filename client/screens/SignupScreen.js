@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
-import axios from 'axios';
+import { View, TextInput, Button, Text, StyleSheet, Alert } from 'react-native';
+import api from '../utils/api';
 import * as z from 'zod';
 import * as SecureStore from 'expo-secure-store';
 
@@ -13,29 +13,36 @@ export default function SignupScreen({ navigation, route }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
     try {
       signupSchema.parse({ email, password });
-      await axios.post('http://192.168.0.114:3000/auth/signup', { email, password });
-      
-      // If user intended to checkout, auto-login and continue
+      setLoading(true);
+      await api.post('/auth/signup', { email, password });
+
+      // Inform the user that the account was created
+      Alert.alert('Success', 'Account successfully created');
+
       if (route?.params?.next === 'checkout') {
         try {
-          const loginRes = await axios.post('http://192.168.0.114:3000/auth/login', { email, password });
+          const loginRes = await api.post('/auth/login', { email, password });
           await SecureStore.setItemAsync('jwtToken', loginRes.data.token);
-          // Navigate to Cart and instruct it to auto-checkout
           navigation.navigate('Cart', { autoCheckout: true });
           return;
         } catch (loginErr) {
-          // Fallthrough to normal flow (navigate to Login) if auto-login fails
           console.error('Auto-login after signup failed', loginErr);
+          setError(loginErr.response?.data?.error || loginErr.message || 'Auto-login failed');
+          setLoading(false);
+          return;
         }
       }
 
       navigation.navigate('Login');
-    } catch (error) {
-      setError(error.response?.data?.error || error.message || 'Signup failed');
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Signup failed');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -46,10 +53,10 @@ export default function SignupScreen({ navigation, route }) {
       <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
       {error && <Text style={styles.error}>{error}</Text>}
       <View style={styles.buttonWrap}>
-        <Button title="Signup" onPress={handleSignup} />
+        <Button title={loading ? 'Please wait...' : 'Signup'} onPress={handleSignup} disabled={loading} />
       </View>
       <View style={styles.buttonWrap}>
-        <Button title="Go to Login" onPress={() => navigation.navigate('Login')} />
+        <Button title="Go to Login" onPress={() => navigation.navigate('Login')} disabled={loading} />
       </View>
     </View>
   );

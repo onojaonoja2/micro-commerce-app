@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
-import axios from 'axios';
+import api from '../utils/api';
 import * as SecureStore from 'expo-secure-store';
 import * as z from 'zod';
 //import { jwtDecode } from 'jwt-decode';
@@ -42,11 +42,13 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     try {
       loginSchema.parse({ email, password });
-      const res = await axios.post('http://192.168.0.114:3000/auth/login', { email, password });
+      setLoading(true);
+      const res = await api.post('/auth/login', { email, password });
       await SecureStore.setItemAsync('jwtToken', res.data.token);
       const decoded = jwtDecode(res.data.token);
       if (decoded.role === 'admin') {
@@ -57,6 +59,8 @@ export default function LoginScreen({ navigation }) {
     } catch (err) {
       console.error('Login error:', err);
       setError(err.response?.data?.error || err.message || 'Login failed - check credentials or network');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,7 +71,7 @@ export default function LoginScreen({ navigation }) {
       <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
       {error && <Text style={styles.error}>{error}</Text>}
       <View style={styles.buttonWrap}>
-        <Button title="Login" onPress={handleLogin} />
+        <Button title={loading ? 'Signing in...' : 'Login'} onPress={handleLogin} disabled={loading} />
       </View>
       <View style={styles.buttonWrap}>
         <Button title="Go to Signup" onPress={() => navigation.navigate('Signup')} />
