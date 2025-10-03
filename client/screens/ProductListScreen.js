@@ -41,16 +41,15 @@ export default function ProductListScreen({ navigation }) {
   };
 
   // Function to handle adding a product to the cart
-  const handleAddToCart = async (productId) => {
-    try {
-      await api.post('/cart/add', { productId, quantity: 1 });
-      Alert.alert('Success', 'Product added to cart!');
-    } catch (err) {
-      console.error("Error adding to cart:", err);
-      // Display a user-friendly error
-      Alert.alert('Error', 'Failed to add item to cart. Please try again.');
-    }
-  };
+ const handleAddToCart = async (productId) => {
+  try {
+    await api.post('/cart/add', { productId, quantity: 1 });
+    alert('Added to cart');
+  } catch (err) {
+    console.error(err);
+    alert(err.response?.data?.error || 'Error adding to cart - check backend logs');
+  }
+};
 
   return (
     <SafeAreaView style={styles.safeContainer}>

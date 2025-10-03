@@ -6,13 +6,31 @@ const router = express.Router();
 
 // Helper to get/create cart ID (user or session)
 const getCartId = (req) => {
-  if (req.user) return `user_${req.user.id}`; // User-based
-  if (!req.session.cartId) req.session.cartId = `session_${Date.now()}`;
-  return req.session.cartId;
+  let cartStmt;
+  if (req.user) {
+    cartStmt = db.prepare('SELECT id FROM carts WHERE user_id = ?');
+    let cart = cartStmt.get(req.user.id);
+    if (!cart) {
+      const insert = db.prepare('INSERT INTO carts (user_id) VALUES (?)');
+      const info = insert.run(req.user.id);
+      cart = { id: info.lastInsertRowid };
+    }
+    return cart.id;
+  } else {
+    if (!req.session.cartSessionId) req.session.cartSessionId = `session_${Date.now()}`;
+    cartStmt = db.prepare('SELECT id FROM carts WHERE session_id = ?');
+    let cart = cartStmt.get(req.session.cartSessionId);
+    if (!cart) {
+      const insert = db.prepare('INSERT INTO carts (session_id) VALUES (?)');
+      const info = insert.run(req.session.cartSessionId);
+      cart = { id: info.lastInsertRowid };
+    }
+    return cart.id;
+  }
 };
 
 // GET /cart - Get cart items and totals
-router.get('/', authenticate, (req, res) => {
+router.get('/', (req, res) => {
   try {
     const cartId = getCartId(req);
     const stmt = db.prepare(`
@@ -24,14 +42,17 @@ router.get('/', authenticate, (req, res) => {
     const total = items.reduce((sum, item) => sum + item.subtotal, 0);
     res.json({ items, total });
   } catch (error) {
+    console.error('Cart error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
 // POST /cart/add - Add item
-router.post('/add', authenticate, (req, res) => {
+router.post('/add', (req, res) => {
   try {
-    const { productId, quantity = 1 } = req.body;
+    const productId = parseInt(req.body.productId);
+    const quantity = parseInt(req.body.quantity || 1);
+    if (isNaN(productId) || isNaN(quantity)) return res.status(400).json({ error: 'Invalid input' });
     const cartId = getCartId(req);
     const productStmt = db.prepare('SELECT stock, price FROM products WHERE id = ?');
     const product = productStmt.get(productId);
@@ -41,12 +62,13 @@ router.post('/add', authenticate, (req, res) => {
     cartStmt.run(cartId, productId, quantity);
     res.json({ message: 'Added to cart' });
   } catch (error) {
+    console.error('Cart error:', error.message);
     res.status(400).json({ error: error.message });
   }
 });
 
 // POST /cart/remove - Remove item
-router.post('/remove', authenticate, (req, res) => {
+router.post('/remove', (req, res) => {
   try {
     const { productId } = req.body;
     const cartId = getCartId(req);
@@ -54,6 +76,7 @@ router.post('/remove', authenticate, (req, res) => {
     stmt.run(cartId, productId);
     res.json({ message: 'Removed from cart' });
   } catch (error) {
+    console.error('Cart error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
